@@ -1,0 +1,5 @@
+"displayName","needResponse","requiredArg","funName"
+"Linear Regression","1","","lm"
+"Logistic Regression","1","","glm"
+"Kmeans","0","Number of Clusters","kmeans"
+"Chi Square","0","","chisq.test"
