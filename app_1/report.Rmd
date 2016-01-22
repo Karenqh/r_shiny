@@ -1,0 +1,8 @@
+Report
+=================
+This is a test report for R Markdown.
+
+```{r, echo=FALSE}
+summary(getTable())
+barplot(getData())
+```
