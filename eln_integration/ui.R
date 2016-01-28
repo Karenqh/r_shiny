@@ -5,11 +5,11 @@ shinyUI(fluidPage(
   sidebarLayout(
     sidebarPanel(
       selectInput('input_funName', 'Please select a function to execute:', 
-                  c("Linear Regression", "Logistic Regression", "Kmeans", "ChiSquare")),
+                  c("Linear Regression", "Logistic Regression", "ANOVA", "Chi-Square")),
       tags$hr(),
       
       # Depends on the function selected, a response variable might be required
-      # If response ~ term: single selection list + Check Boxes
+      # If response ~ term: single selection list + Radio Button/Check Boxes
       # If single input: empty selection list + Text Input with dynamic label
       wellPanel( 
         # conditionalPanel(

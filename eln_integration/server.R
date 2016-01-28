@@ -8,7 +8,7 @@ shinyServer(function(input, output, session) {
   #=== Code here will be loaded when a new user connects to the app ===
   
   # Read and display the data
-  table <- as.data.frame(read.csv("rock.csv", header = TRUE, sep = ",", quote = '"'))
+  table <- read.csv("rock.csv", header = TRUE, sep = ",", quote = '"')
   output$table <- renderTable({
     # Display the table
     table
@@ -42,6 +42,10 @@ shinyServer(function(input, output, session) {
     funConfig[getFunIndex(), "needResponse"] == 1
   })
   
+  isSingleTerm <- reactive({
+    funConfig[getFunIndex(), "singleTerm"] == 1
+  })
+  
   output$selectResponse <- renderUI({
     if (isResposeNeeded()) {
       selectInput("response", 'Dependent Variable', choices = names(table))
@@ -54,7 +58,13 @@ shinyServer(function(input, output, session) {
     if (isResposeNeeded()) {
       # Update check boxes for selecting independent variables
       allColNames <- names(table)
-      checkboxGroupInput("terms", "Independent Variables", choices = allColNames[allColNames != input$response])
+      
+      # If the function expects a singel term, use radio buttons rather than check boxes
+      if (isSingleTerm()) {
+        radioButtons("terms", "Independent Variable", choices = allColNames[allColNames != input$response])        
+      } else {
+        checkboxGroupInput("terms", "Independent Variables", choices = allColNames[allColNames != input$response])
+      }
       
     } else {
       # If the selected function requires an numeric argument (currently we only support numeric input)
@@ -68,38 +78,6 @@ shinyServer(function(input, output, session) {
   })
   
   
-  updateUI <- function(needResponse) {
-    # Selection of Function will direclty affect the Select Input UI
-    if (needResponse) {
-      output$selectResponse <- renderUI({
-        selectInput("response", 'Dependent Variable', choices = names(table))
-      })
-      
-      # Update check boxes for selecting independent variables
-      allColNames <- names(table)
-      output$inputUI <- renderUI({
-        checkboxGroupInput("terms", "Independent Variables", 
-                           choices = allColNames[allColNames != input$response])
-      })
-      
-    } else {
-      output$selectResponse <- renderUI({ return(NULL) })
-      
-      # If the selected function requires an numeric argument (currently we only support numeric input)
-      reqArgName <- funConfig[index, "requiredArg"]
-      if (reqArgName != "") {
-        output$inputUI <- renderUI({
-          numericInput("reqArg", reqArgName, value = 3)
-        })
-      } else {
-        output$inputUI <- renderUI({
-          return(NULL)
-        })
-      }
-    }
-  }
-
-  
   # Get the actual function name that R recognizes
   getFunName <- reactive({
     as.character(funConfig[getFunIndex(), "funName"])
@@ -107,28 +85,74 @@ shinyServer(function(input, output, session) {
   
   # Compose the formula for regression analysis
   getFormula <- reactive({
-    
     if (length(input$terms) == 0) 
       return(NULL)
     
     as.formula(paste(input$response, " ~ ", paste(input$terms, collapse = " + ")))
   })
   
+  # Get the fitted models for ANOVA
+  getFittedModels <- reactive({
+    if (length(input$terms) == 0) 
+      return(NULL)
+    
+    modelList <- list()
+    i <- 1
+    for (term in input$terms) {
+      # browser()
+      modelList[[i]] <- lm(as.formula(paste(input$response, " ~ ", term)), table)
+      i <- i + 1
+    }
+    return(modelList)
+  })
+  
+  
   # Run the analysis and get the result object
   # lm(formula, data)
   # glm(formula, family = gaussian, data)
-  # chisq.test(x)
+  # anova(Object...) where Object is one or more fitted result objects
+  # chisq.test(x) where x should be a 2-d matrix/table
   # kmeans(x, centers) - let's forget about this for now
   
   hasPlot <- TRUE
   hasSummary <- TRUE
   
+  
+  getFirstArg <- function(funName) {
+    tryCatch({
+      formalArgs(funName)[1]
+    }, error = function(e) {
+      return(NULL)
+    } )
+  }
+  
   getResult <- reactive({
+    # Reset session flag
+    hasPlot <<- TRUE
+    hasSummary <<- TRUE
+    
     if (funConfig[getFunIndex(), "needResponse"] == 1) {
       if (is.null(getFormula()))
         return(NULL)
       
-      do.call(getFunName(), list(getFormula(), data = table))
+      funName <- getFunName();
+      
+      # Need to update the flags for plot and summary
+      
+      switch (getFirstArg(funName),
+        "formula" = do.call(funName, list(getFormula(), data = table)),
+        "object" = { # do lm for each independent variable
+          hasPlot <<- FALSE
+          hasSummary <<- FALSE
+          
+          return(do.call(funName, getFittedModels()))
+        }, 
+        "x" = {
+          hasPlot <<- FALSE
+          hasSummary <<- FALSE
+          return(do.call(funName, list(x = table[, c(input$response, input$terms)])))
+        } # pass in the 2-D matrix
+      )
     } 
     else {
       # If the selected function requires an numeric argument (currently we only support numeric input)
@@ -137,9 +161,9 @@ shinyServer(function(input, output, session) {
         do.call(getFunName(), list(x=table, centers=input$reqArg))
         # hasSummary <<- FALSE
       } else {
-        do.call(getFunName(), list(table))
         hasPlot <<- FALSE
         hasSummary <<- FALSE
+        do.call(getFunName(), list(table))
       }
     }
   })
