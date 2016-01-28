@@ -8,7 +8,7 @@ shinyServer(function(input, output, session) {
   #=== Code here will be loaded when a new user connects to the app ===
   
   # Read and display the data
-  table <- read.csv("rock.csv", header = TRUE, sep = ",", quote = '"')
+  table <- read.csv("data.csv", header = TRUE, sep = ",", quote = '"')
   output$table <- renderTable({
     # Display the table
     table
